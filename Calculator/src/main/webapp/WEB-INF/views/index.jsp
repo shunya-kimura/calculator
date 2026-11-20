@@ -1,124 +1,81 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calculator</title>
-<style>
-  body {
-    display: flex;
-    justify-content: center;
-    padding-top: 50px;
-    font-family: sans-serif;
-    background-color: #f4f5f7;
-  }
-  
-  .calculator {
-    width: 320px;
-    background-color: #e5e5e5;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  }
-
-  .display {
-    background-color: #f0f4e6;
-    padding: 10px;
-    border-radius: 5px;
-    text-align: right;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
-  }
-  
-  .history {
-    font-size: 16px;
-    color: #333;
-    min-height: 20px;
-  }
-  
-  .result-display {
-    font-size: 40px;
-    font-weight: bold;
-    color: #000;
-    margin: 0;
-  }
-
-  .keypad {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-  }
-  
-  button {
-    padding: 15px 5px;
-    font-size: 18px;
-    border: 1px solid #999;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-  }
-  
-  button:active {
-    opacity: 0.8;
-  }
-
-  .span-2 {
-    grid-column: span 2;
-  }
-
-  .btn-red { background-color: #b51c1c; color: white; border-color: #8b0000; }
-  .btn-dark { background-color: #555555; color: white; border-color: #333333; font-size: 15px; }
-  .btn-green { background-color: #8da56b; color: white; border-color: #6b854a; font-size: 15px; }
-  .btn-blue { background-color: #4b6a9b; color: white; border-color: #2b4d82; font-size: 24px; }
-  .btn-white { background-color: #ffffff; color: #000000; font-size: 22px; }
-</style>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
 </head>
 <body>
 
 <div class="calculator">
-  <div class="display">
-    <div class="history"></div>
-    <div class="result-display">
-      <% 
+
+    <!-- 履歴 -->
+    <div class="top-bar">
+        <button type="button" class="history-icon" aria-label="履歴を表示">🕘</button>
+    </div>
+
+    <!-- 表示欄 -->
+    <%
         Object result = request.getAttribute("result");
-        out.print(result != null ? result : "0");
-      %>
+    %>
+    <input type="text" id="display" class="display" value="<%= result != null ? result : "" %>" readonly aria-label="入力値と計算結果">
+
+    <form action="calculator" method="post" id="calcForm">
+
+        <!-- 電卓ボタン -->
+        <div class="buttons">
+
+            <!-- 1段目 -->
+            <button class="function" type="submit" formaction="clear">AC</button>
+            <button class="function" type="button" aria-label="1文字削除">×</button>
+            <button class="function" type="button">%</button>
+            <button class="operator" type="button">÷</button>
+
+            <!-- 2段目 -->
+            <button class="number" type="button">7</button>
+            <button class="number" type="button">8</button>
+            <button class="number" type="button">9</button>
+            <button class="operator" type="button" aria-label="掛ける">×</button>
+
+            <!-- 3段目 -->
+            <button class="number" type="button">4</button>
+            <button class="number" type="button">5</button>
+            <button class="number" type="button">6</button>
+            <button class="operator" type="button">−</button>
+
+            <!-- 4段目 -->
+            <button class="number" type="button">1</button>
+            <button class="number" type="button">2</button>
+            <button class="number" type="button">3</button>
+            <button class="operator" type="button">＋</button>
+
+            <!-- 5段目 -->
+            <button class="sign" type="button">+/−</button>
+            <button class="number" type="button">0</button>
+            <button class="number" type="button">.</button>
+            <button class="operator" type="submit">=</button>
+
+        </div>
+
+        <input type="hidden" name="num1" id="num1" value="">
+        <input type="hidden" name="operator" id="operator" value="">
+        <input type="hidden" name="num2" id="num2" value="">
+    </form>
+
+    <!-- メッセージ -->
+    <div class="status" id="status" role="status"></div>
+
+    <!-- 履歴表示エリア -->
+    <div id="historyArea" class="history-area" style="display: none;">
+        <div class="history-header">
+            <span>履歴</span>
+            <button type="button" class="history-close">閉じる</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
     </div>
-  </div>
 
-  <form action="calculator" method="post" id="calcForm">
-    <div class="keypad">
-      <button type="submit" formaction="clear" class="btn-red span-2">全消去 (AC)</button>
-      <button type="button" class="btn-dark span-2">⌫ 1文字削除</button>
-
-      <button type="button" class="btn-green span-2">税込 (10%)</button>
-      <button type="button" class="btn-green span-2">税抜 (10%)</button>
-
-      <button type="button" class="btn-blue">÷</button>
-      <button type="button" class="btn-white">7</button>
-      <button type="button" class="btn-white">8</button>
-      <button type="button" class="btn-white">9</button>
-
-      <button type="button" class="btn-blue">×</button>
-      <button type="button" class="btn-white">4</button>
-      <button type="button" class="btn-white">5</button>
-      <button type="button" class="btn-white">6</button>
-
-      <button type="button" class="btn-blue">-</button>
-      <button type="button" class="btn-white">1</button>
-      <button type="button" class="btn-white">2</button>
-      <button type="button" class="btn-white">3</button>
-
-      <button type="button" class="btn-blue">+</button>
-      <button type="button" class="btn-white">0</button>
-      <button type="button" class="btn-white">.</button>
-      <button type="submit" class="btn-dark">=</button>
-    </div>
-    
-    <input type="hidden" name="num1" id="num1" value="">
-    <input type="hidden" name="operator" id="operator" value="">
-    <input type="hidden" name="num2" id="num2" value="">
-  </form>
 </div>
 
 </body>
