@@ -1,8 +1,6 @@
 package controller;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -11,10 +9,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import model.ExpressionCalculator;
 
+/**
+ * 電卓の画面表示と計算の受け付けを行う Servlet（Controller）。
+ */
 @WebServlet("/calculator")
 public class CalculatorServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 電卓の画面（index.jsp）を表示する。
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -22,21 +26,27 @@ public class CalculatorServlet extends HttpServlet {
     }
 
     /**
-     * 計算式を配列（同じ名前のパラメータ token の並び）で受け取り、結果をJSONで返す。
-     * 例: token=12&token=+&token=3&token=*&token=4
+     * 計算式の文字列（パラメータ expression。例: "12+3*4"）を受け取り、
+     * Model で計算した結果を JSON で返す。
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
-        String[] tokens = request.getParameterValues("token");
+        String expression = request.getParameter("expression");
         response.setContentType("application/json; charset=UTF-8");
-        response.getWriter().write(calculate(tokens == null ? List.of() : Arrays.asList(tokens)));
+        response.getWriter().write(calculate(expression));
     }
 
-    private String calculate(List<String> tokens) {
+    /**
+     * Model を呼び出して計算し、結果またはエラーの種類を JSON 文字列にする。
+     *
+     * @param expression 計算式の文字列
+     * @return 画面（JS）に返す JSON 文字列
+     */
+    private String calculate(String expression) {
         try {
-            return "{\"status\":\"ok\",\"result\":\"" + ExpressionCalculator.evaluate(tokens) + "\"}";
+            return "{\"status\":\"ok\",\"result\":\"" + ExpressionCalculator.evaluate(expression) + "\"}";
         } catch (ArithmeticException e) {
             return "{\"status\":\"divideByZero\"}";
         } catch (ExpressionCalculator.ResultOverflowException e) {

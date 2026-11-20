@@ -9,12 +9,11 @@ const MESSAGE_INVALID = '無効な式です。';
 const MESSAGE_DIVIDE_BY_ZERO = '0で割ることはできません。';
 const MESSAGE_FAILED = '計算できませんでした。もう一度お試しください。';
 
-const OPERATORS = ['+', '-', '*', '/'];
-
 /*
- * 入力中の式は「確定した要素の配列」と「入力中の数値」で持つ。
+ * 入力中の式は「確定した部分」と「入力中の数値」に分けて持つ。
  * 例: 12 + 3 × 4 を入力中 → tokens = ['12', '+', '3', '*'], current = '4'
- * = を押すと、tokens と current をまとめた配列をサーバーに送る。
+ * = を押すと、つなげた文字列（例: "12+3*4"）をサーバーに送り、
+ * 数値と演算子への分解と計算はサーバー側（Model）で行う。
  */
 let tokens = [];
 let current = '';
@@ -25,21 +24,35 @@ let calculating = false;
 const displayElement = document.getElementById('display');
 const statusElement = document.getElementById('status');
 
+/**
+ * 表示欄の下にメッセージを表示する。空文字を渡すと消える。
+ * @param {string} message 表示するメッセージ
+ */
 function setStatus(message) {
     statusElement.textContent = message;
 }
 
+/**
+ * 内部で使う記号（* / -）を、画面表示用の記号（× ÷ −）に置き換える。
+ * @param {string} token 数値または演算子
+ * @returns {string} 画面表示用の文字列
+ */
 function toDisplayText(token) {
     return token.replace('*', '×').replace('/', '÷').replace('-', '−');
 }
 
+/**
+ * 現在の入力内容を表示欄に反映する。エラー中は「Error」と表示する。
+ */
 function render() {
     const text = [...tokens, current].map(toDisplayText).join('');
     displayElement.value = showsError ? 'Error' : text;
     fitDisplayText();
 }
 
-/** 長い式が表示欄に収まるように文字を小さくする */
+/**
+ * 長い式が表示欄に収まるように、文字の大きさを小さくする。
+ */
 function fitDisplayText() {
     let fontSize = DISPLAY_FONT_SIZE;
     displayElement.style.fontSize = fontSize + 'px';
@@ -50,6 +63,9 @@ function fitDisplayText() {
     displayElement.scrollLeft = displayElement.scrollWidth;
 }
 
+/**
+ * 入力内容と状態をすべて初期状態に戻す。
+ */
 function reset() {
     tokens = [];
     current = '';
@@ -57,18 +73,26 @@ function reset() {
     showsError = false;
 }
 
-/** 末尾の「.」を取り除いた数値を返す（例: '5.' → '5'） */
+/**
+ * 末尾の「.」を取り除いた数値を返す（例: '5.' → '5'）。
+ * @param {string} number 数値の文字列
+ * @returns {string} 整えた数値の文字列
+ */
 function normalizeNumber(number) {
     return number.endsWith('.') ? number.slice(0, -1) : number;
 }
 
+/**
+ * 数字ボタンの処理。入力中の数値の末尾に数字を追加する。
+ * 0の連続入力は00にせず、15桁を超える入力は受け付けない。
+ * @param {string} digit 押された数字（0〜9）
+ */
 function inputNumber(digit) {
     setStatus('');
     if (justCalculated || showsError) {
         reset();
     }
     if (current === '0') {
-        // 0の連続入力は00にせず、他の数字は0と置き換える
         current = digit;
     } else if (current.replace(/[-.]/g, '').length < MAX_DIGITS) {
         current += digit;
@@ -76,6 +100,9 @@ function inputNumber(digit) {
     render();
 }
 
+/**
+ * 小数点ボタンの処理。入力中の数値に「.」を1つだけ追加する。
+ */
 function inputDecimal() {
     setStatus('');
     if (showsError || current === '') {
@@ -89,6 +116,11 @@ function inputDecimal() {
     render();
 }
 
+/**
+ * 演算子ボタンの処理。入力中の数値を確定し、演算子を追加する。
+ * 演算子が続いた場合は、後から押した演算子に置き換える。
+ * @param {string} operator 押された演算子（+ - * /）
+ */
 function chooseOperator(operator) {
     setStatus('');
     if (showsError) {
@@ -99,7 +131,6 @@ function chooseOperator(operator) {
             setStatus(operator === '*' || operator === '/' ? MESSAGE_INVALID : MESSAGE_ENTER_VALUE);
             return;
         }
-        // 演算子が続いた場合は、後から押した演算子に置き換える
         tokens[tokens.length - 1] = operator;
     } else {
         tokens.push(normalizeNumber(current), operator);
@@ -109,12 +140,19 @@ function chooseOperator(operator) {
     render();
 }
 
+/**
+ * ACボタンの処理。入力内容をすべて消す。
+ */
 function clearDisplay() {
     setStatus('');
     reset();
     render();
 }
 
+/**
+ * ×（1文字削除）ボタンの処理。最後に入力した1文字を消す。
+ * 演算子を消した場合は、その前の数値を再び入力中に戻す。
+ */
 function deleteLast() {
     setStatus('');
     if (showsError) {
@@ -125,7 +163,6 @@ function deleteLast() {
             current = '';
         }
     } else if (tokens.length > 0) {
-        // 末尾の演算子を消し、その前の数値を再び入力中に戻す
         tokens.pop();
         current = tokens.pop();
     }
@@ -133,34 +170,40 @@ function deleteLast() {
     render();
 }
 
-/** サーバーに送る配列を作る。末尾の演算子は取り除く */
+/**
+ * サーバーに送る計算式の文字列を作る。末尾の演算子は取り除く。
+ * @returns {string} 計算式（例: "12+3*4"）。計算するものがない場合は空文字
+ */
 function buildExpression() {
-    const expression = [...tokens];
+    const parts = [...tokens];
     if (current === '') {
-        expression.pop();
+        parts.pop();
     } else {
-        expression.push(normalizeNumber(current));
+        parts.push(normalizeNumber(current));
     }
-    return expression;
+    // 数値だけ、または未入力の場合は計算しない
+    return parts.length < 3 ? '' : parts.join('');
 }
 
+/**
+ * =ボタンの処理。計算式の文字列をサーバーに送り、結果を受け取る。
+ */
 async function calculate() {
     if (calculating || showsError) {
         return;
     }
     setStatus('');
     const expression = buildExpression();
-    if (expression.length < 3) {
-        // 数値だけ、または未入力の場合は計算しない
+    if (expression === '') {
         return;
     }
 
-    const body = new URLSearchParams();
-    expression.forEach((token) => body.append('token', token));
-
     calculating = true;
     try {
-        const response = await fetch(document.body.dataset.calculateUrl, { method: 'POST', body });
+        const response = await fetch(document.body.dataset.calculateUrl, {
+            method: 'POST',
+            body: new URLSearchParams({ expression })
+        });
         if (!response.ok) {
             throw new Error('HTTP ' + response.status);
         }
@@ -173,6 +216,10 @@ async function calculate() {
     }
 }
 
+/**
+ * サーバーから返ってきた結果を画面に反映する。
+ * @param {{status: string, result?: string}} answer サーバーの応答
+ */
 function applyResult(answer) {
     switch (answer.status) {
         case 'ok':
@@ -204,6 +251,7 @@ const actions = {
     calculate: calculate
 };
 
+/* ボタンが押されたら、data-action に対応する処理を呼び出す */
 document.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
     const action = button && actions[button.dataset.action];
