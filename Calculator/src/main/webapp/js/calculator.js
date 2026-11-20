@@ -6,7 +6,6 @@ const MIN_DISPLAY_FONT_SIZE = 18;
 
 const MESSAGE_ENTER_VALUE = '値を入力してください。';
 const MESSAGE_INVALID = '無効な式です。';
-const MESSAGE_DIVIDE_BY_ZERO = '0で割ることはできません。';
 const MESSAGE_FAILED = '計算できませんでした。もう一度お試しください。';
 
 /*
@@ -18,7 +17,6 @@ const MESSAGE_FAILED = '計算できませんでした。もう一度お試し�
 let tokens = [];
 let current = '';
 let justCalculated = false;
-let showsError = false;
 let calculating = false;
 
 const displayElement = document.getElementById('display');
@@ -42,11 +40,10 @@ function toDisplayText(token) {
 }
 
 /**
- * 現在の入力内容を表示欄に反映する。エラー中は「Error」と表示する。
+ * 現在の入力内容を表示欄に反映する。
  */
 function render() {
-    const text = [...tokens, current].map(toDisplayText).join('');
-    displayElement.value = showsError ? 'Error' : text;
+    displayElement.value = [...tokens, current].map(toDisplayText).join('');
     fitDisplayText();
 }
 
@@ -70,7 +67,6 @@ function reset() {
     tokens = [];
     current = '';
     justCalculated = false;
-    showsError = false;
 }
 
 /**
@@ -89,7 +85,7 @@ function normalizeNumber(number) {
  */
 function inputNumber(digit) {
     setStatus('');
-    if (justCalculated || showsError) {
+    if (justCalculated) {
         reset();
     }
     if (current === '0') {
@@ -105,7 +101,7 @@ function inputNumber(digit) {
  */
 function inputDecimal() {
     setStatus('');
-    if (showsError || current === '') {
+    if (current === '') {
         setStatus(MESSAGE_ENTER_VALUE);
         return;
     }
@@ -123,9 +119,6 @@ function inputDecimal() {
  */
 function chooseOperator(operator) {
     setStatus('');
-    if (showsError) {
-        return;
-    }
     if (current === '') {
         if (tokens.length === 0) {
             setStatus(operator === '*' || operator === '/' ? MESSAGE_INVALID : MESSAGE_ENTER_VALUE);
@@ -155,9 +148,7 @@ function clearDisplay() {
  */
 function deleteLast() {
     setStatus('');
-    if (showsError) {
-        reset();
-    } else if (current !== '') {
+    if (current !== '') {
         current = current.slice(0, -1);
         if (current === '-') {
             current = '';
@@ -189,7 +180,7 @@ function buildExpression() {
  * =ボタンの処理。計算式の文字列をサーバーに送り、結果を受け取る。
  */
 async function calculate() {
-    if (calculating || showsError) {
+    if (calculating) {
         return;
     }
     setStatus('');
@@ -218,25 +209,16 @@ async function calculate() {
 
 /**
  * サーバーから返ってきた結果を画面に反映する。
+ * 成功（ok）なら結果を表示し、それ以外はエラーメッセージを表示する。
  * @param {{status: string, result?: string}} answer サーバーの応答
  */
 function applyResult(answer) {
-    switch (answer.status) {
-        case 'ok':
-            tokens = [];
-            current = answer.result;
-            justCalculated = true;
-            break;
-        case 'overflow':
-            reset();
-            showsError = true;
-            break;
-        case 'divideByZero':
-            setStatus(MESSAGE_DIVIDE_BY_ZERO);
-            break;
-        default:
-            setStatus(MESSAGE_INVALID);
-            break;
+    if (answer.status === 'ok') {
+        tokens = [];
+        current = answer.result;
+        justCalculated = true;
+    } else {
+        setStatus(MESSAGE_FAILED);
     }
     render();
 }

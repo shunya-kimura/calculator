@@ -1,6 +1,7 @@
 package controller;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -14,7 +15,6 @@ import model.ExpressionCalculator;
  */
 @WebServlet("/calculator")
 public class CalculatorServlet extends HttpServlet {
-    private static final long serialVersionUID = 1L;
 
     /**
      * 電卓の画面（index.jsp）を表示する。
@@ -32,27 +32,18 @@ public class CalculatorServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        request.setCharacterEncoding("UTF-8");
         String expression = request.getParameter("expression");
-        response.setContentType("application/json; charset=UTF-8");
-        response.getWriter().write(calculate(expression));
-    }
 
-    /**
-     * Model を呼び出して計算し、結果またはエラーの種類を JSON 文字列にする。
-     *
-     * @param expression 計算式の文字列
-     * @return 画面（JS）に返す JSON 文字列
-     */
-    private String calculate(String expression) {
+        String json;
         try {
-            return "{\"status\":\"ok\",\"result\":\"" + ExpressionCalculator.evaluate(expression) + "\"}";
-        } catch (ArithmeticException e) {
-            return "{\"status\":\"divideByZero\"}";
-        } catch (ExpressionCalculator.ResultOverflowException e) {
-            return "{\"status\":\"overflow\"}";
-        } catch (ExpressionCalculator.InvalidExpressionException e) {
-            return "{\"status\":\"invalid\"}";
+            BigDecimal result = ExpressionCalculator.evaluate(expression);
+            json = "{\"status\":\"ok\",\"result\":\"" + result.stripTrailingZeros().toPlainString() + "\"}";
+        } catch (RuntimeException e) {
+            // 0で割った場合や、式が不正な場合はエラーとして返す
+            json = "{\"status\":\"error\"}";
         }
+
+        response.setContentType("application/json; charset=UTF-8");
+        response.getWriter().write(json);
     }
 }
