@@ -27,23 +27,21 @@ public class CalculatorServlet extends HttpServlet {
 
     /**
      * 計算式の文字列（パラメータ expression。例: "12+3*4"）を受け取り、
-     * Model で計算した結果を JSON で返す。
+     * Model で計算した結果を文字列（例: "24"）で返す。
+     * 計算できなかった場合は、ステータスコード 400 を返す。
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         String expression = request.getParameter("expression");
+        response.setContentType("text/plain; charset=UTF-8");
 
-        String json;
         try {
             BigDecimal result = ExpressionCalculator.evaluate(expression);
-            json = "{\"status\":\"ok\",\"result\":\"" + result.stripTrailingZeros().toPlainString() + "\"}";
+            response.getWriter().write(result.stripTrailingZeros().toPlainString());
         } catch (RuntimeException e) {
-            // 0で割った場合や、式が不正な場合はエラーとして返す
-            json = "{\"status\":\"error\"}";
+            // 0で割った場合や、式が不正な場合
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         }
-
-        response.setContentType("application/json; charset=UTF-8");
-        response.getWriter().write(json);
     }
 }

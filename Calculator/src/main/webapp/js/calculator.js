@@ -177,7 +177,8 @@ function buildExpression() {
 }
 
 /**
- * =ボタンの処理。計算式の文字列をサーバーに送り、結果を受け取る。
+ * =ボタンの処理。計算式の文字列をサーバーに送り、返ってきた結果（文字列）を表示する。
+ * サーバーがエラー（ステータスコード 400 など）を返した場合は、メッセージを表示する。
  */
 async function calculate() {
     if (calculating) {
@@ -196,31 +197,20 @@ async function calculate() {
             body: new URLSearchParams({ expression })
         });
         if (!response.ok) {
-            throw new Error('HTTP ' + response.status);
+            setStatus(MESSAGE_FAILED);
+            return;
         }
-        applyResult(await response.json());
+        tokens = [];
+        current = await response.text();
+        justCalculated = true;
+        render();
     } catch (error) {
+        // サーバーに接続できなかった場合
         console.error(error);
         setStatus(MESSAGE_FAILED);
     } finally {
         calculating = false;
     }
-}
-
-/**
- * サーバーから返ってきた結果を画面に反映する。
- * 成功（ok）なら結果を表示し、それ以外はエラーメッセージを表示する。
- * @param {{status: string, result?: string}} answer サーバーの応答
- */
-function applyResult(answer) {
-    if (answer.status === 'ok') {
-        tokens = [];
-        current = answer.result;
-        justCalculated = true;
-    } else {
-        setStatus(MESSAGE_FAILED);
-    }
-    render();
 }
 
 /* ボタンの data-action と処理の対応。data-value があれば引数として渡す */
