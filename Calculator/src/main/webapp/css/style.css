@@ -77,13 +77,15 @@ body {
     justify-content: center;
 }
 
-/* 数字 */
-.number {
+/* 数字・+/- */
+.number,
+.sign {
     background: #333;
     color: #fff;
 }
 
-.number:active {
+.number:active,
+.sign:active {
     background: #555;
 }
 
@@ -106,16 +108,6 @@ body {
 .operator:active {
     background: #fff;
     color: #ff9f0a;
-}
-
-/* +/- */
-.sign {
-    background: #333;
-    color: #fff;
-}
-
-.sign:active {
-    background: #555;
 }
 
 /* エラー表示 */

@@ -3,26 +3,24 @@ package model;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 電卓の計算式を評価する。
  *
- * 対応する書式: 数値、+ - * /、単項マイナス、数値直後の %。
- * × と ÷ を + と − より先に計算する。
+ * 計算式は「数値, 演算子, 数値, 演算子, 数値 ...」の順に並んだ配列で受け取る。
+ * 演算子は + - * / の4種類。× と ÷ を + と − より先に計算する。
  */
 public final class ExpressionCalculator {
 
     /** 設計書 6章: 入力と計算結果の桁数の上限 */
     public static final int MAX_DIGITS = 15;
 
-    private static final int MAX_EXPRESSION_LENGTH = 1024;
-    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    private static final int MAX_TOKENS = 1023;
+    private static final Pattern NUMBER = Pattern.compile("-?\\d+(\\.\\d+)?");
 
-    private final String expression;
-    private int position;
-
-    private ExpressionCalculator(String expression) {
-        this.expression = expression;
+    private ExpressionCalculator() {
     }
 
     /**
@@ -32,105 +30,56 @@ public final class ExpressionCalculator {
      * @throws ArithmeticException        0で割った場合
      * @throws ResultOverflowException    結果の整数部が15桁を超える場合
      */
-    public static String evaluate(String expression) {
-        if (expression == null || expression.isEmpty() || expression.length() > MAX_EXPRESSION_LENGTH) {
+    public static String evaluate(List<String> tokens) {
+        if (tokens.isEmpty() || tokens.size() % 2 == 0 || tokens.size() > MAX_TOKENS) {
             throw new InvalidExpressionException();
         }
-        ExpressionCalculator calculator = new ExpressionCalculator(expression);
-        BigDecimal value = calculator.parseExpression();
-        if (calculator.position != expression.length()) {
-            throw new InvalidExpressionException();
-        }
-        return format(value);
-    }
 
-    private BigDecimal parseExpression() {
-        BigDecimal total = parseTerm(null);
-        while (peek() == '+' || peek() == '-') {
-            char operator = expression.charAt(position++);
-            BigDecimal term = parseTerm(total);
-            total = operator == '+' ? total.add(term) : total.subtract(term);
-        }
-        return total;
-    }
-
-    /**
-     * 項を評価する。
-     *
-     * 項が「b%」だけで、+ または − の右側にある場合は、それまでの値に対する割合とする。
-     * 例: 200+10% = 200 + (200の10%) = 220
-     *
-     * @param base 割合計算の基準値。式の先頭の項では null
-     */
-    private BigDecimal parseTerm(BigDecimal base) {
-        Factor first = parseFactor();
-        boolean hasMultiplication = peek() == '*' || peek() == '/';
-        BigDecimal value = first.value;
-        if (first.percent && base != null && !hasMultiplication) {
-            return base.multiply(first.value, MathContext.DECIMAL128);
-        }
-        while (peek() == '*' || peek() == '/') {
-            char operator = expression.charAt(position++);
-            BigDecimal right = parseFactor().value;
-            if (operator == '*') {
-                value = value.multiply(right);
-            } else {
-                value = value.divide(right, MathContext.DECIMAL128);
+        // × ÷ は直前の項にその場で掛け割りし、+ − が来たら項を合計に足し込む
+        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal term = toNumber(tokens.get(0));
+        for (int i = 1; i < tokens.size(); i += 2) {
+            String operator = tokens.get(i);
+            BigDecimal next = toNumber(tokens.get(i + 1));
+            switch (operator) {
+                case "+" -> {
+                    total = total.add(term);
+                    term = next;
+                }
+                case "-" -> {
+                    total = total.add(term);
+                    term = next.negate();
+                }
+                case "*" -> term = term.multiply(next);
+                case "/" -> {
+                    if (next.signum() == 0) {
+                        throw new ArithmeticException("0で割ることはできません");
+                    }
+                    term = term.divide(next, MathContext.DECIMAL128);
+                }
+                default -> throw new InvalidExpressionException();
             }
         }
-        return value;
+        return format(total.add(term));
     }
 
-    private Factor parseFactor() {
-        boolean negative = false;
-        if (peek() == '-') {
-            negative = true;
-            position++;
-        }
-        BigDecimal number = parseNumber();
-        boolean percent = peek() == '%';
-        if (percent) {
-            position++;
-            number = number.divide(HUNDRED, MathContext.DECIMAL128);
-        }
-        return new Factor(negative ? number.negate() : number, percent);
-    }
-
-    private BigDecimal parseNumber() {
-        int start = position;
-        int digits = 0;
-        boolean hasDot = false;
-        while (position < expression.length()) {
-            char c = expression.charAt(position);
-            if (c >= '0' && c <= '9') {
-                digits++;
-            } else if (c == '.' && !hasDot) {
-                hasDot = true;
-            } else {
-                break;
-            }
-            position++;
-        }
-        if (digits == 0 || digits > MAX_DIGITS || expression.charAt(start) == '.') {
+    private static BigDecimal toNumber(String token) {
+        if (token == null || !NUMBER.matcher(token).matches()
+                || token.replaceAll("[-.]", "").length() > MAX_DIGITS) {
             throw new InvalidExpressionException();
         }
-        return new BigDecimal(expression.substring(start, position));
-    }
-
-    private char peek() {
-        return position < expression.length() ? expression.charAt(position) : '\0';
+        return new BigDecimal(token);
     }
 
     /** 整数部と小数部を合わせて15桁に収める。整数部だけで15桁を超える場合はエラーとする。 */
     private static String format(BigDecimal value) {
-        BigDecimal integerPart = value.abs().setScale(0, RoundingMode.DOWN);
-        int integerDigits = integerPart.signum() == 0 ? 1 : integerPart.precision();
-        if (integerDigits > MAX_DIGITS) {
+        int digits = integerDigits(value);
+        if (digits > MAX_DIGITS) {
             throw new ResultOverflowException();
         }
-        BigDecimal rounded = value.setScale(MAX_DIGITS - integerDigits, RoundingMode.HALF_UP);
-        BigDecimal roundedInteger = rounded.abs().setScale(0, RoundingMode.DOWN);
-        if (roundedInteger.signum() != 0 && roundedInteger.precision() > MAX_DIGITS) {
+        BigDecimal rounded = value.setScale(MAX_DIGITS - digits, RoundingMode.HALF_UP);
+        // 四捨五入で桁が繰り上がる場合(例: 999...9.6)があるので、もう一度確認する
+        if (integerDigits(rounded) > MAX_DIGITS) {
             throw new ResultOverflowException();
         }
         if (rounded.signum() == 0) {
@@ -139,14 +88,10 @@ public final class ExpressionCalculator {
         return rounded.stripTrailingZeros().toPlainString();
     }
 
-    private static final class Factor {
-        final BigDecimal value;
-        final boolean percent;
-
-        Factor(BigDecimal value, boolean percent) {
-            this.value = value;
-            this.percent = percent;
-        }
+    /** 整数部の桁数を返す。整数部が0の場合は1桁とする */
+    private static int integerDigits(BigDecimal value) {
+        BigDecimal integerPart = value.abs().setScale(0, RoundingMode.DOWN);
+        return integerPart.signum() == 0 ? 1 : integerPart.precision();
     }
 
     public static final class InvalidExpressionException extends RuntimeException {
