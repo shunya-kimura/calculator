@@ -7,61 +7,36 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import model.ExpressionCalculator;
 
 @WebServlet("/calculator")
 public class CalculatorServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String view = "/WEB-INF/views/index.jsp";
-        request.getRequestDispatcher(view).forward(request, response);
+        request.getRequestDispatcher("/WEB-INF/views/index.jsp").forward(request, response);
     }
 
+    /** 計算式を受け取り、結果をJSONで返す。 */
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String number1 = request.getParameter("num1");
-        String number2 = request.getParameter("num2");
-        String operator = request.getParameter("operator");
+        request.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json; charset=UTF-8");
+        response.getWriter().write(calculate(request.getParameter("expression")));
+    }
 
-        double num1 = 0;
-        double num2 = 0;
-        double result = 0;
-
-        if (number1 != null && !number1.isEmpty() && number2 != null && !number2.isEmpty() && operator != null) {
-            try {
-                num1 = Double.parseDouble(number1);
-                num2 = Double.parseDouble(number2);
-
-                switch (operator) {
-                    case "+":
-                        result = num1 + num2;
-                        break;
-                    case "-":
-                        result = num1 - num2;
-                        break;
-                    case "×":
-                        result = num1 * num2;
-                        break;
-                    case "÷":
-                        if (num2 != 0) {
-                            result = num1 / num2;
-                        } else {
-                            request.setAttribute("result", "0で割ることはできません");
-                        }
-                        break;
-                    default:
-                        request.setAttribute("result", "演算子が無効です");
-                        break;
-                }
-            } catch (NumberFormatException e) {
-                request.setAttribute("result", "入力値が無効です");
-            }
-        } else {
-            request.setAttribute("result", "数値を入力してください");
+    private String calculate(String expression) {
+        try {
+            return "{\"status\":\"ok\",\"result\":\"" + ExpressionCalculator.evaluate(expression) + "\"}";
+        } catch (ArithmeticException e) {
+            return "{\"status\":\"divideByZero\"}";
+        } catch (ExpressionCalculator.ResultOverflowException e) {
+            return "{\"status\":\"overflow\"}";
+        } catch (ExpressionCalculator.InvalidExpressionException e) {
+            return "{\"status\":\"invalid\"}";
         }
-
-        request.setAttribute("result", result);
-
-        String view = "/WEB-INF/views/index.jsp";
-        request.getRequestDispatcher(view).forward(request, response);
     }
 }
